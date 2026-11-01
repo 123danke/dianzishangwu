@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>订单详情 - Ecommerce</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <style>
+    .breadcrumb { font-size: 14px; color: var(--text-secondary); margin: 16px 0; }
+    .breadcrumb a { color: var(--text-secondary); }
+    .breadcrumb span { margin: 0 8px; color: #ccc; }
+
+    .order-detail { margin-bottom: 20px; }
+    .status-card {
+      background: var(--bg-white); border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 16px;
+    }
+    .status-head { display: flex; justify-content: space-between; align-items: center; }
+    .status-text { font-size: 22px; font-weight: 700; }
+    .status-pending { color: #e67e22; }
+    .status-paid { color: #3498db; }
+    .status-shipped { color: #9b59b6; }
+    .status-completed { color: #27ae60; }
+    .status-cancelled { color: var(--text-muted); }
+    .status-actions { display: flex; gap: 10px; }
+    .status-actions button {
+      padding: 8px 20px; border-radius: var(--radius-full);
+      font-size: 14px; cursor: pointer; border: 1px solid var(--primary);
+      background: #fff; color: var(--primary);
+    }
+    .status-actions button:hover { background: var(--primary); color: #fff; }
+    .status-actions button.primary { background: var(--primary); color: #fff; }
+
+    .info-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+    }
+    .info-card {
+      background: var(--bg-white); border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow-sm);
+    }
+    .info-card h3 {
+      font-size: 15px; font-weight: 600; margin-bottom: 16px;
+      padding-bottom: 10px; border-bottom: 1px solid #f5f5f5;
+    }
+    .info-row {
+      display: flex; justify-content: space-between;
+      padding: 6px 0; font-size: 14px;
+    }
+    .info-row .label { color: var(--text-secondary); }
+    .info-row .value { color: var(--text-primary); }
+
+    .items-card {
+      background: var(--bg-white); border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow-sm);
+    }
+    .items-card h3 {
+      font-size: 15px; font-weight: 600; margin-bottom: 16px;
+      padding-bottom: 10px; border-bottom: 1px solid #f5f5f5;
+    }
+    .item-row {
+      display: grid; grid-template-columns: 70px 1fr auto auto;
+      gap: 16px; align-items: center; padding: 12px 0;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row .thumb {
+      width: 70px; height: 70px;
+      background: #f5f5f5; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; color: #ccc; overflow: hidden;
+    }
+    .item-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .item-row .name { font-size: 14px; margin-bottom: 4px; }
+    .item-row .sub { font-size: 12px; color: var(--text-muted); }
+    .item-row .p { font-size: 14px; text-align: right; }
+    .item-row .q { color: var(--text-secondary); font-size: 13px; text-align: right; }
+
+    .total-row {
+      display: flex; justify-content: flex-end; gap: 30px;
+      padding: 16px 0; border-top: 1px solid #f0f0f0;
+    }
+    .total-row .label { color: var(--text-secondary); }
+    .total-row .amount { font-size: 20px; font-weight: 700; color: var(--primary); }
+
+    @media (max-width: 768px) {
+      .info-grid { grid-template-columns: 1fr; }
+      .item-row { grid-template-columns: 50px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="header"></div>
+
+  <main class="container">
+    <div class="breadcrumb">
+      <a href="orders.html">我的订单</a><span>/</span>订单详情
+    </div>
+
+    <div id="detail">
+      <div class="loading" style="text-align:center;padding:60px"><div class="spinner"></div></div>
+    </div>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/common.js"></script>
+  <script>
+    if (!requireLogin()) { location.href = 'login.html?redirect=orders.html'; }
+
+    // 后端用 orderNo 路由
+    const orderNo = new URLSearchParams(location.search).get('orderNo')
+                 || new URLSearchParams(location.search).get('id');
+    if (!orderNo) {
+      document.getElementById('detail').innerHTML =
+        '<div class="empty" style="padding:60px">缺少订单编号</div>';
+    }
+
+    // 与 orders.html 保持一致的状态映射
+    const STATUS_MAP = {
+      PendingPayment: { label: '待付款', class: 'status-pending',   canPay: true,    canCancel: true },
+      Paid:           { label: '待发货', class: 'status-paid',      canCancel: true },
+      Shipped:        { label: '待收货', class: 'status-shipped' },
+      Completed:      { label: '已完成', class: 'status-completed' },
+      Cancelled:      { label: '已取消', class: 'status-cancelled' }
+    };
+    function getStatusInfo(s) {
+      return STATUS_MAP[s] || { label: (s || '未知'), class: 'status-pending' };
+    }
+
+    async function load() {
+      if (!orderNo) return;
+      try {
+        const o = await Api.get(`/api/order/${orderNo}`);
+        render(o);
+      } catch (e) {
+        document.getElementById('detail').innerHTML =
+          `<div class="empty" style="padding:60px">订单不存在：${e.message || ''}</div>`;
+      }
+    }
+
+    function render(o) {
+      const st = getStatusInfo(o.status);
+      let actions = '';
+      if (st.canPay)
+        actions = `<button class="primary" onclick="pay()">立即付款</button><button onclick="cancel()">取消订单</button>`;
+      else if (st.canCancel)
+        actions = `<button onclick="cancel()">取消订单</button>`;
+
+      // items：后端字段 productImage（不是 imageUrl）、price、quantity、subtotal
+      const itemsHtml = (o.items || []).map(i => {
+        const img = i.productImage
+          ? (i.productImage.startsWith('http') ? i.productImage : `${i.productImage}`)
+          : '';
+        return `
+        <div class="item-row">
+          <div class="thumb">${img ? `<img src="${img}" onerror="this.parentElement.innerHTML='🛍️'">` : '🛍️'}</div>
+          <div>
+            <div class="name">${i.productName}</div>
+            <div class="sub">商品ID: ${i.productId} · 小计 ${formatMoney(i.subtotal)}</div>
+          </div>
+          <div class="q">× ${i.quantity}</div>
+          <div class="p">${formatMoney(i.price)}</div>
+        </div>`;
+      }).join('');
+
+      // 后端时间字段：createdAt / payTime / shipTime / finishTime / cancelTime
+      document.getElementById('detail').innerHTML = `
+        <div class="status-card">
+          <div class="status-head">
+            <div class="status-text ${st.class}">● ${st.label}</div>
+            <div class="status-actions">${actions}</div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>订单信息</h3>
+            <div class="info-row"><span class="label">订单编号</span><span class="value" style="font-family:monospace">${o.orderNo}</span></div>
+            <div class="info-row"><span class="label">下单时间</span><span class="value">${formatDate(o.createdAt)}</span></div>
+            ${o.payTime      ? `<div class="info-row"><span class="label">付款时间</span><span class="value">${formatDate(o.payTime)}</span></div>` : ''}
+            ${o.shipTime     ? `<div class="info-row"><span class="label">发货时间</span><span class="value">${formatDate(o.shipTime)}</span></div>` : ''}
+            ${o.finishTime   ? `<div class="info-row"><span class="label">完成时间</span><span class="value">${formatDate(o.finishTime)}</span></div>` : ''}
+            ${o.cancelTime   ? `<div class="info-row"><span class="label">取消时间</span><span class="value">${formatDate(o.cancelTime)}</span>${o.cancelReason ? `<span style="color:var(--text-muted)">（${o.cancelReason}）</span>` : ''}</div>` : ''}
+          </div>
+          <div class="info-card">
+            <h3>收货信息</h3>
+            <div class="info-row"><span class="label">收货人</span><span class="value">${o.shippingName || '-'}</span></div>
+            <div class="info-row"><span class="label">联系电话</span><span class="value">${o.shippingPhone || '-'}</span></div>
+            <div class="info-row"><span class="label">收货地址</span><span class="value">${o.shippingAddress || '-'}</span></div>
+            ${o.remark ? `<div class="info-row"><span class="label">备注</span><span class="value">${o.remark}</span></div>` : ''}
+          </div>
+        </div>
+
+        <div class="items-card" style="margin-top:16px">
+          <h3>商品清单（${(o.items || []).length}件）</h3>
+          ${itemsHtml}
+          <div class="total-row">
+            <span class="label">实付总额</span>
+            <span class="amount">${formatMoney(o.totalAmount)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    async function pay() {
+      if (!confirm('确认支付该订单？')) return;
+      try { await Api.post(`/api/order/${orderNo}/pay`); Toast.success('支付成功'); load(); } catch (e) { Toast.error(e.message || '支付失败'); }
+    }
+    async function cancel() {
+      if (!confirm('确认取消订单？')) return;
+      try { await Api.post(`/api/order/${orderNo}/cancel`); Toast.success('已取消'); load(); } catch (e) { Toast.error(e.message || '取消失败'); }
+    }
+
+    load();
+  </script>
+</body>
+</html>

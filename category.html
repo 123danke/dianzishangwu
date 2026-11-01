@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>商品列表 - Ecommerce</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <style>
+    .page-title {
+      background: linear-gradient(135deg, #ff5a5f, #ff8a8f);
+      color: #fff;
+      padding: 32px 0;
+      text-align: center;
+    }
+    .page-title h1 { font-size: 28px; font-weight: 700; }
+
+    .filter-bar {
+      background: var(--bg-white);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .filter-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .filter-row:last-child { margin-bottom: 0; }
+    .filter-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      min-width: 50px;
+    }
+    .filter-options {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-options button {
+      padding: 6px 14px;
+      background: transparent;
+      border: 1px solid #e0e0e0;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .filter-options button:hover { border-color: var(--primary); color: var(--primary); }
+    .filter-options button.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+    .product-card { cursor: pointer; }
+    .product-card .img-wrap {
+      aspect-ratio: 1 / 1;
+      background: linear-gradient(135deg, #f5f5f7, #e8e8ed);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 60px; color: #ccc;
+    }
+    .product-card .info { padding: 14px; }
+    .product-card .name {
+      font-size: 14px; color: var(--text-primary);
+      height: 40px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      margin-bottom: 8px;
+    }
+    .product-card .bottom {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .product-card .price { font-size: 18px; }
+    .product-card .sales { font-size: 12px; color: var(--text-muted); }
+
+    .pagination {
+      display: flex; justify-content: center; gap: 8px;
+      margin: 40px 0;
+    }
+    .pagination button {
+      min-width: 38px; height: 38px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+      background: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .pagination button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+    .pagination button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pagination button:disabled { opacity: .4; cursor: not-allowed; }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+    }
+    .search-box input {
+      flex: 1;
+      border-radius: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .product-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div id="header"></div>
+
+  <section class="page-title">
+    <div class="container">
+      <h1 id="pageTitle">全部商品</h1>
+    </div>
+  </section>
+
+  <main class="container">
+    <!-- 筛选 -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <span class="filter-label">分类</span>
+        <div class="filter-options" id="categoryFilter">
+          <button data-id="" class="active">全部</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">排序</span>
+        <div class="filter-options" id="sortFilter">
+          <button data-sort="" class="active">综合</button>
+          <button data-sort="price-asc">价格↑</button>
+          <button data-sort="price-desc">价格↓</button>
+          <button data-sort="sales-desc">销量优先</button>
+          <button data-sort="created-desc">最新上架</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">搜索</span>
+        <div class="search-box" style="flex:1">
+          <input type="text" id="keyword" placeholder="输入关键词搜索商品..." />
+          <button class="btn btn-primary" onclick="search()">搜索</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结果统计 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span id="resultInfo" style="color:var(--text-secondary);font-size:14px">共 0 件商品</span>
+    </div>
+
+    <!-- 列表 -->
+    <div class="product-grid" id="productList">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination" id="pagination"></div>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/common.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    let state = {
+      categoryId: params.get('categoryId') || '',
+      keyword: params.get('keyword') || '',
+      sortBy: '',
+      pageNumber: 1,
+      pageSize: 12,
+      totalCount: 0,
+      totalPages: 1
+    };
+
+    function renderProductCard(p) {
+      const emojiMap = {
+        '手机': '📱', '数码': '💻', '电脑': '💻',
+        '服装': '👕', '鞋': '👟', '包': '👜',
+        '食品': '🍎', '水果': '🍎', '零食': '🍪',
+        '家居': '🏠', '电器': '🔌', '美妆': '💄',
+        '图书': '📚', '玩具': '🎁', '运动': '⚽'
+      };
+      let emoji = '🛍️';
+      if (p.categoryName) {
+        for (const [k, v] of Object.entries(emojiMap)) {
+          if (p.categoryName.includes(k)) { emoji = v; break; }
+        }
+      }
+      return `
+        <div class="card product-card" onclick="location.href='product.html?id=${p.id}'">
+          <div class="img-wrap">${p.imageUrl ? `<img src="${p.imageUrl}" alt="${p.name}" onerror="this.parentElement.innerHTML='${emoji}'">` : emoji}</div>
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="bottom">
+              <span class="price">${formatMoney(p.price)}${p.originalPrice ? `<span class="price-old">${formatMoney(p.originalPrice)}</span>` : ''}</span>
+              <span class="sales">已售 ${p.salesCount}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadCategories() {
+      try {
+        const cats = await Api.get('/api/product/categories');
+        const all = [];
+        const flatten = list => list.forEach(c => { all.push(c); flatten(c.children || []); });
+        flatten(cats);
+        document.getElementById('pageTitle').textContent =
+          state.categoryId ? (all.find(c => c.id == state.categoryId)?.name || '商品列表') : '全部商品';
+        document.getElementById('categoryFilter').innerHTML =
+          `<button data-id="" class="${state.categoryId ? '' : 'active'}">全部</button>` +
+          all.map(c => `<button data-id="${c.id}" class="${state.categoryId == c.id ? 'active' : ''}">${c.name}</button>`).join('');
+        document.querySelectorAll('#categoryFilter button').forEach(btn => {
+          btn.onclick = () => {
+            state.categoryId = btn.dataset.id;
+            state.pageNumber = 1;
+            loadProducts();
+            loadCategories();
+          };
+        });
+      } catch {}
+    }
+
+    async function loadProducts() {
+      try {
+        const q = new URLSearchParams();
+        q.set('pageNumber', state.pageNumber);
+        q.set('pageSize', state.pageSize);
+        if (state.categoryId) q.set('categoryId', state.categoryId);
+        if (state.keyword) q.set('keyword', state.keyword);
+        if (state.sortBy) q.set('sortBy', state.sortBy);
+        const data = await Api.get('/api/product?' + q.toString());
+        state.totalCount = data.totalCount;
+        state.totalPages = data.totalPages;
+        document.getElementById('resultInfo').textContent = `共 ${data.totalCount} 件商品`;
+        document.getElementById('productList').innerHTML =
+          data.items.length ? data.items.map(renderProductCard).join('') :
+          '<div class="empty" style="grid-column:span 4">暂无商品</div>';
+        renderPagination();
+      } catch {}
+    }
+
+    function renderPagination() {
+      const pager = document.getElementById('pagination');
+      if (state.totalPages <= 1) { pager.innerHTML = ''; return; }
+      let html = `<button ${state.pageNumber === 1 ? 'disabled' : ''} onclick="gotoPage(${state.pageNumber - 1})">上一页</button>`;
+      for (let i = Math.max(1, state.pageNumber - 2); i <= Math.min(state.totalPages, state.pageNumber + 2); i++) {
+        html += `<button class="${i === state.pageNumber ? 'active' : ''}" onclick="gotoPage(${i})">${i}</button>`;
+      }
+      html += `<button ${state.pageNumber === state.totalPages ? 'disabled' : ''} onclick="gotoPage(${state.pageNumber + 1})">下一页</button>`;
+      pager.innerHTML = html;
+    }
+
+    function gotoPage(p) { state.pageNumber = p; loadProducts(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function search() {
+      state.keyword = document.getElementById('keyword').value.trim();
+      state.pageNumber = 1;
+      loadProducts();
+    }
+
+    document.querySelectorAll('#sortFilter button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#sortFilter button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.sortBy = btn.dataset.sort;
+        state.pageNumber = 1;
+        loadProducts();
+      };
+    });
+
+    document.getElementById('keyword').value = state.keyword;
+
+    loadCategories();
+    loadProducts();
+  </script>
+</body>
+</html>

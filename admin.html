@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理后台 - Ecommerce</title>
+  <link rel="stylesheet" href="css/main.css" />
+  <style>
+    body { background: #f5f6fa; }
+    .admin-header {
+      background: #2c3e50; color: #fff;
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .admin-header .logo { font-size: 18px; font-weight: 700; }
+    .admin-header .user-info { font-size: 13px; opacity: .9; }
+    .admin-header a { color: #fff; margin-left: 16px; font-size: 13px; opacity: .8; }
+    .admin-header a:hover { opacity: 1; }
+
+    .admin-layout { display: flex; min-height: calc(100vh - 56px); }
+    .admin-sidebar {
+      width: 200px; background: #fff; box-shadow: 2px 0 8px rgba(0,0,0,.05);
+      padding: 16px 0;
+    }
+    .admin-menu-item {
+      padding: 12px 24px; cursor: pointer;
+      font-size: 14px; color: var(--text-secondary);
+      border-left: 3px solid transparent;
+    }
+    .admin-menu-item:hover { background: #f8f9fa; }
+    .admin-menu-item.active {
+      background: #fff5f5; color: var(--primary);
+      border-left-color: var(--primary); font-weight: 500;
+    }
+    .admin-menu-item .icon { margin-right: 8px; }
+
+    .admin-main { flex: 1; padding: 24px; overflow-x: auto; }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: #fff; border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow-sm);
+    }
+    .stat-card .label { font-size: 13px; color: var(--text-muted); }
+    .stat-card .num { font-size: 28px; font-weight: 700; margin-top: 8px; color: var(--text-primary); }
+    .stat-card.primary .num { color: var(--primary); }
+    .stat-card.blue .num { color: #3498db; }
+    .stat-card.green .num { color: #27ae60; }
+    .stat-card.orange .num { color: #e67e22; }
+
+    .admin-card {
+      background: #fff; border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm); margin-bottom: 20px;
+    }
+    .admin-card-head {
+      padding: 16px 24px; border-bottom: 1px solid #f0f0f0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .admin-card-head h3 { font-size: 16px; font-weight: 600; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; padding: 14px 24px;
+      font-size: 13px; color: var(--text-muted); font-weight: 500;
+      background: #fafafa; border-bottom: 1px solid #f0f0f0;
+    }
+    td {
+      padding: 14px 24px; font-size: 14px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    tr:hover td { background: #fafafa; }
+
+    .tag {
+      display: inline-block; padding: 2px 10px; border-radius: 10px;
+      font-size: 12px;
+    }
+    .tag-success { background: #e8f5e9; color: #2e7d32; }
+    .tag-default { background: #f5f5f5; color: #757575; }
+    .tag-warning { background: #fff3e0; color: #e65100; }
+
+    .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 4px; cursor: pointer; border: 1px solid var(--primary); background: #fff; color: var(--primary); }
+    .btn-sm:hover { background: var(--primary); color: #fff; }
+    .btn-sm.primary { background: var(--primary); color: #fff; }
+    .btn-sm.danger { border-color: #e74c3c; color: #e74c3c; }
+    .btn-sm.danger:hover { background: #e74c3c; color: #fff; }
+    .btn-sm + .btn-sm { margin-left: 6px; }
+
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      background: #fff; width: 500px; max-width: 90%;
+      border-radius: var(--radius-lg); padding: 24px;
+    }
+    .modal h3 { font-size: 18px; margin-bottom: 16px; }
+
+    .pagination {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 16px 24px;
+    }
+    .pagination button {
+      min-width: 32px; height: 32px; border-radius: 6px;
+      border: 1px solid #e0e0e0; background: #fff; font-size: 13px; cursor: pointer;
+    }
+    .pagination button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pagination button:disabled { opacity: .4; cursor: not-allowed; }
+
+    .empty { padding: 40px; text-align: center; color: var(--text-muted); }
+
+    @media (max-width: 768px) {
+      .admin-sidebar { display: none; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      table { font-size: 12px; }
+      th, td { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-header">
+    <div class="logo">🛒 Ecommerce 管理后台</div>
+    <div class="user-info">
+      <span id="adminUser">管理员</span>
+      <a href="index.html">返回前台</a>
+      <a href="javascript:Auth.logout();location.href='login.html'">退出</a>
+    </div>
+  </div>
+
+  <div class="admin-layout">
+    <div class="admin-sidebar">
+      <div class="admin-menu-item active" data-view="dashboard" onclick="switchView('dashboard', this)"><span class="icon">📊</span>数据概览</div>
+      <div class="admin-menu-item" data-view="products" onclick="switchView('products', this)"><span class="icon">📦</span>商品管理</div>
+      <div class="admin-menu-item" data-view="orders" onclick="switchView('orders', this)"><span class="icon">📋</span>订单管理</div>
+    </div>
+
+    <div class="admin-main" id="adminMain"></div>
+  </div>
+
+  <!-- 商品编辑弹窗 -->
+  <div class="modal-mask" id="productModal">
+    <div class="modal">
+      <h3 id="modalTitle">添加商品</h3>
+      <form id="productForm" onsubmit="saveProduct(event)">
+        <input type="hidden" id="prodId" />
+        <div class="form-group">
+          <label>商品名称</label>
+          <input type="text" id="prodName" required maxlength="100" />
+        </div>
+        <div class="form-group">
+          <label>分类</label>
+          <select id="prodCat" required>
+            <option value="">加载中...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>售价</label>
+          <input type="number" id="prodPrice" step="0.01" required min="0" />
+        </div>
+        <div class="form-group">
+          <label>原价</label>
+          <input type="number" id="prodOp" step="0.01" min="0" />
+        </div>
+        <div class="form-group">
+          <label>库存</label>
+          <input type="number" id="prodStock" required min="0" />
+        </div>
+        <div class="form-group">
+          <label>图片URL</label>
+          <input type="text" id="prodImg" placeholder="https://..." />
+        </div>
+        <div class="form-group">
+          <label>商品描述</label>
+          <textarea id="prodDesc" rows="3"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    if (!Auth.isLoggedIn()) { location.href = 'login.html?redirect=admin.html'; }
+    const curUser = Auth.user;
+    const isAdmin = Auth.isAdmin();
+    if (!isAdmin) {
+      alert('无权限访问管理后台');
+      location.href = 'index.html';
+    }
+    document.getElementById('adminUser').textContent = curUser.userName;
+
+    let state = { view: 'dashboard' };
+
+    function switchView(view, el) {
+      state.view = view;
+      document.querySelectorAll('.admin-menu-item').forEach(m => m.classList.remove('active'));
+      if (el) el.classList.add('active');
+      const container = document.getElementById('adminMain');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      if (view === 'dashboard') loadDashboard();
+      else if (view === 'products') loadProducts();
+      else if (view === 'orders') loadOrders();
+    }
+
+    async function loadDashboard() {
+      try {
+        const [overview, topProducts] = await Promise.all([
+          Api.get('/api/admin/stats/overview'),
+          Api.get('/api/admin/stats/top-products?count=10')
+        ]);
+        const main = document.getElementById('adminMain');
+        main.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card primary"><div class="label">总销售额</div><div class="num">${formatMoney(overview.totalPaidAmount)}</div></div>
+            <div class="stat-card blue"><div class="label">订单总数</div><div class="num">${overview.totalOrders}</div></div>
+            <div class="stat-card orange"><div class="label">商品总数</div><div class="num">${overview.totalProducts}</div></div>
+            <div class="stat-card green"><div class="label">用户总数</div><div class="num">${overview.totalUsers}</div></div>
+          </div>
+          <div class="admin-card">
+            <div class="admin-card-head"><h3>🏆 热销商品 TOP 10</h3></div>
+            <table>
+              <thead><tr><th>排名</th><th>商品名称</th><th>分类</th><th>单价</th><th>销量</th><th>销售额</th></tr></thead>
+              <tbody>
+                ${topProducts.length ? topProducts.map((p, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td>${p.name}</td>
+                    <td>${p.categoryName || '-'}</td>
+                    <td>${formatMoney(p.price)}</td>
+                    <td>${p.salesCount}</td>
+                    <td style="color:var(--primary);font-weight:600">${formatMoney(p.price * p.salesCount)}</td>
+                  </tr>
+                `).join('') : '<tr><td colspan="6" class="empty">暂无数据</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch {}
+    }
+
+    // ==== 商品管理 ====
+    let prodPage = 1;
+    async function loadProducts() {
+      try {
+        const data = await Api.get(`/api/admin/products?pageNumber=${prodPage}&pageSize=10`);
+        const main = document.getElementById('adminMain');
+        main.innerHTML = `
+          <div class="admin-card">
+            <div class="admin-card-head">
+              <h3>📦 商品列表（共 ${data.totalCount} 件）</h3>
+              <button class="btn btn-primary btn-sm primary" onclick="openModal()">+ 添加商品</button>
+            </div>
+            <table>
+              <thead><tr><th>ID</th><th>名称</th><th>分类</th><th>价格</th><th>库存</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody>
+                ${data.items.length ? data.items.map(p => `
+                  <tr>
+                    <td>${p.id}</td>
+                    <td>${p.name}</td>
+                    <td>${p.categoryName || '-'}</td>
+                    <td>${formatMoney(p.price)}</td>
+                    <td>${p.stock}</td>
+                    <td><span class="tag ${p.status === 'Enabled' ? 'tag-success' : 'tag-default'}">${p.status === 'Enabled' ? '上架' : '下架'}</span></td>
+                    <td>
+                      <button class="btn-sm" onclick="openModal(${p.id})">编辑</button>
+                      <button class="btn-sm" onclick="toggleStatus(${p.id}, '${p.status}')">${p.status === 'Enabled' ? '下架' : '上架'}</button>
+                    </td>
+                  </tr>
+                `).join('') : '<tr><td colspan="7" class="empty">暂无商品</td></tr>'}
+              </tbody>
+            </table>
+            <div class="pagination" id="prodPager"></div>
+          </div>
+        `;
+        let pager = '';
+        for (let i = Math.max(1, prodPage - 2); i <= Math.min(data.totalPages, prodPage + 2); i++)
+          pager += `<button class="${i === prodPage ? 'active' : ''}" onclick="prodPage=${i};loadProducts()">${i}</button>`;
+        document.getElementById('prodPager').innerHTML = pager;
+      } catch {}
+    }
+
+    async function loadCategoryOptions(selectedVal) {
+      const sel = document.getElementById('prodCat');
+      sel.innerHTML = '<option value="">加载中...</option>';
+      try {
+        const cats = await Api.get('/api/product/categories');
+        sel.innerHTML = '';
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if (selectedVal && String(selectedVal) === String(c.id)) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        if ((!selectedVal || selectedVal === '') && cats.length > 0) sel.value = cats[0].id;
+      } catch (e) {
+        sel.innerHTML = '<option value="">加载失败，请重试</option>';
+      }
+    }
+
+    async function openModal(id) {
+      document.getElementById('productForm').reset();
+      document.getElementById('modalTitle').textContent = id ? '编辑商品' : '添加商品';
+      await loadCategoryOptions(null);
+      if (id) {
+        const p = await Api.get(`/api/product/${id}`);
+        document.getElementById('prodId').value = p.id;
+        document.getElementById('prodName').value = p.name;
+        await loadCategoryOptions(p.categoryId);
+        document.getElementById('prodPrice').value = p.price;
+        document.getElementById('prodOp').value = p.originalPrice || '';
+        document.getElementById('prodStock').value = p.stock;
+        document.getElementById('prodImg').value = p.imageUrl || '';
+        document.getElementById('prodDesc').value = p.description || '';
+      }
+      document.getElementById('productModal').classList.add('show');
+    }
+    function closeModal() { document.getElementById('productModal').classList.remove('show'); }
+
+    async function saveProduct(e) {
+      e.preventDefault();
+      const id = document.getElementById('prodId').value;
+      const name = document.getElementById('prodName').value.trim();
+      const catVal = document.getElementById('prodCat').value;
+      const price = parseFloat(document.getElementById('prodPrice').value);
+      const stock = parseInt(document.getElementById('prodStock').value);
+
+      if (!name) { Toast.error('请输入商品名称'); return; }
+      if (!catVal) { Toast.error('请选择商品分类'); return; }
+      if (!price || price <= 0) { Toast.error('请输入有效的售价'); return; }
+      if (isNaN(stock) || stock < 0) { Toast.error('请输入有效的库存'); return; }
+
+      const data = {
+        name,
+        categoryId: parseInt(catVal, 10),
+        price,
+        originalPrice: parseFloat(document.getElementById('prodOp').value) || null,
+        stock,
+        imageUrl: document.getElementById('prodImg').value.trim() || null,
+        description: document.getElementById('prodDesc').value.trim() || null
+      };
+      try {
+        if (id) await Api.put(`/api/admin/products/${id}`, data);
+        else await Api.post('/api/admin/products', data);
+        Toast.success(id ? '更新成功' : '添加成功');
+        closeModal();
+        loadProducts();
+      } catch (err) {
+        Toast.error(err?.message || '操作失败，请检查输入或稍后重试');
+      }
+    }
+
+    async function toggleStatus(id, cur) {
+      try {
+        const next = cur === 'Enabled' ? 0 : 1;
+        await Api.put(`/api/admin/products/${id}/status?status=${next}`, null);
+        Toast.success('操作成功');
+        loadProducts();
+      } catch {}
+    }
+
+    // ==== 订单管理 ====
+    let orderPage = 1;
+    async function loadOrders() {
+      try {
+        const data = await Api.get(`/api/admin/orders?pageNumber=${orderPage}&pageSize=10`);
+        const main = document.getElementById('adminMain');
+        const statusMap = {
+          'PendingPayment': { text: '待付款', cls: 'tag-warning' },
+          'Paid':           { text: '已付款', cls: 'tag-default' },
+          'Shipped':        { text: '已发货', cls: 'tag-default' },
+          'Completed':      { text: '已完成', cls: 'tag-success' },
+          'Cancelled':      { text: '已取消', cls: 'tag-default' },
+          'Refunded':       { text: '已退款', cls: 'tag-default' }
+        };
+        main.innerHTML = `
+          <div class="admin-card">
+            <div class="admin-card-head"><h3>📋 订单列表（共 ${data.totalCount} 条）</h3></div>
+            <table>
+              <thead><tr><th>订单号</th><th>用户</th><th>金额</th><th>状态</th><th>下单时间</th><th>操作</th></tr></thead>
+              <tbody>
+                ${data.items.length ? data.items.map(o => {
+                  const s = statusMap[o.status] || { text: o.status, cls: 'tag-default' };
+                  return `
+                  <tr>
+                    <td style="font-family:monospace">${o.orderNo}</td>
+                    <td>${o.userName || '-'}</td>
+                    <td style="color:var(--primary);font-weight:600">${formatMoney(o.totalAmount)}</td>
+                    <td><span class="tag ${s.cls}">${s.text}</span></td>
+                    <td>${formatDate(o.createdAt)}</td>
+                    <td>
+                      <a class="btn-sm" href="order-detail.html?id=${o.id}">查看</a>
+                      ${o.status === 'Paid' ? `<button class="btn-sm primary" onclick="shipOrder(${o.id})">发货</button>` : ''}
+                    </td>
+                  </tr>`;
+                }).join('') : '<tr><td colspan="6" class="empty">暂无订单</td></tr>'}
+              </tbody>
+            </table>
+            <div class="pagination" id="orderPager"></div>
+          </div>
+        `;
+        let pager = '';
+        for (let i = Math.max(1, orderPage - 2); i <= Math.min(data.totalPages, orderPage + 2); i++)
+          pager += `<button class="${i === orderPage ? 'active' : ''}" onclick="orderPage=${i};loadOrders()">${i}</button>`;
+        document.getElementById('orderPager').innerHTML = pager;
+      } catch {}
+    }
+
+    async function shipOrder(id) {
+      if (!confirm('确认发货该订单？')) return;
+      try {
+        await Api.post(`/api/admin/orders/${id}/ship`);
+        Toast.success('发货成功');
+        loadOrders();
+      } catch {}
+    }
+
+    switchView('dashboard');
+  </script>
+</body>
+</html>
